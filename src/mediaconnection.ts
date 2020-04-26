@@ -1,7 +1,11 @@
 import { util } from "./util";
 import logger from "./logger";
 import { Negotiator } from "./negotiator";
-import { ConnectionType, ConnectionEventType, ServerMessageType } from "./enums";
+import {
+  ConnectionType,
+  ConnectionEventType,
+  ServerMessageType,
+} from "./enums";
 import { Peer } from "./peer";
 import { BaseConnection } from "./baseconnection";
 import { ServerMessage } from "./servermessage";
@@ -21,8 +25,12 @@ export class MediaConnection extends BaseConnection {
     return ConnectionType.Media;
   }
 
-  get localStream(): MediaStream { return this._localStream; }
-  get remoteStream(): MediaStream { return this._remoteStream; }
+  get localStream(): MediaStream {
+    return this._localStream;
+  }
+  get remoteStream(): MediaStream {
+    return this._remoteStream;
+  }
 
   constructor(peerId: string, provider: Peer, options: any) {
     super(peerId, provider, options);
@@ -37,7 +45,7 @@ export class MediaConnection extends BaseConnection {
     if (this._localStream) {
       this._negotiator.startConnection({
         _stream: this._localStream,
-        originator: true
+        originator: true,
       });
     }
   }
@@ -71,7 +79,7 @@ export class MediaConnection extends BaseConnection {
   answer(stream: MediaStream, options: AnswerOption = {}): void {
     if (this._localStream) {
       logger.warn(
-        "Local stream already exists on this MediaConnection. Are you answering a call twice?"
+        "Local stream already exists on this MediaConnection. Are you answering a call twice?",
       );
       return;
     }
@@ -82,11 +90,14 @@ export class MediaConnection extends BaseConnection {
       this.options.sdpTransform = options.sdpTransform;
     }
 
-    this._negotiator.startConnection({ ...this.options._payload, _stream: stream });
+    this._negotiator.startConnection({
+      ...this.options._payload,
+      _stream: stream,
+    });
     // Retrieve lost messages stored because PeerConnection not set up.
     const messages = this.provider._getMessages(this.connectionId);
 
-    for (let message of messages) {
+    for (const message of messages) {
       this.handleMessage(message);
     }
 

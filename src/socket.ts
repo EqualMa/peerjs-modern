@@ -7,7 +7,7 @@ import { SocketEventType, ServerMessageType } from "./enums";
  * possible connection for peers.
  */
 export class Socket extends EventEmitter {
-  private _disconnected: boolean = true;
+  private _disconnected = true;
   private _id?: string;
   private _messagesQueue: Array<object> = [];
   private _socket?: WebSocket;
@@ -157,12 +157,12 @@ export class Socket extends EventEmitter {
   }
 
   private _cleanup(): void {
-    if (!!this._socket) {
+    if (this._socket) {
       this._socket.onopen = this._socket.onmessage = this._socket.onclose = null;
       this._socket.close();
       this._socket = undefined;
     }
 
-    clearTimeout(this._wsPingTimer!);
+    clearTimeout(this._wsPingTimer);
   }
 }

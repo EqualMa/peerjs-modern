@@ -5,7 +5,7 @@ export class EncodingQueue extends EventEmitter {
   readonly fileReader: FileReader = new FileReader();
 
   private _queue: Blob[] = [];
-  private _processing: boolean = false;
+  private _processing = false;
 
   constructor() {
     super();
@@ -14,7 +14,7 @@ export class EncodingQueue extends EventEmitter {
       this._processing = false;
 
       if (evt.target) {
-        this.emit('done', evt.target.result as ArrayBuffer);
+        this.emit("done", evt.target.result as ArrayBuffer);
       }
 
       this.doNextTask();
@@ -24,8 +24,8 @@ export class EncodingQueue extends EventEmitter {
       logger.error(`EncodingQueue error:`, evt);
       this._processing = false;
       this.destroy();
-      this.emit('error', evt);
-    }
+      this.emit("error", evt);
+    };
   }
 
   get queue(): Blob[] {

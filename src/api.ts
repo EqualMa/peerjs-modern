@@ -2,7 +2,7 @@ import { util } from "./util";
 import logger from "./logger";
 
 export class API {
-  constructor(private readonly _options: any) { }
+  constructor(private readonly _options: any) {}
 
   private _buildUrl(method: string): string {
     const protocol = this._options.secure ? "https://" : "http://";
@@ -73,8 +73,10 @@ export class API {
               "PeerServer to use this feature.";
           }
 
-          throw new Error("It doesn't look like you have permission to list peers IDs. " +
-            helpfulError);
+          throw new Error(
+            "It doesn't look like you have permission to list peers IDs. " +
+              helpfulError,
+          );
         }
 
         throw new Error(`Error. Status:${response.status}`);

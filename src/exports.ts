@@ -3,7 +3,7 @@ import { Peer } from "./peer";
 
 export const peerjs = {
   Peer,
-  util
+  util,
 };
 
 export default Peer;

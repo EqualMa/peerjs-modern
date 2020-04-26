@@ -1,17 +1,21 @@
 import * as BinaryPack from "peerjs-js-binarypack";
-import { Supports } from './supports';
-import { UtilSupportsObj } from '..';
+import { Supports } from "./supports";
+import { UtilSupportsObj } from "..";
 
 const DEFAULT_CONFIG = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "turn:0.peerjs.com:3478", username: "peerjs", credential: "peerjsp" }
+    {
+      urls: "turn:0.peerjs.com:3478",
+      username: "peerjs",
+      credential: "peerjsp",
+    },
   ],
-  sdpSemantics: "unified-plan"
+  sdpSemantics: "unified-plan",
 };
 
-export const util = new class {
-  noop(): void { }
+export const util = new (class {
+  noop(): void {}
 
   readonly CLOUD_HOST = "0.peerjs.com";
   readonly CLOUD_PORT = 443;
@@ -57,8 +61,7 @@ export const util = new class {
         try {
           dc.binaryType = "blob";
           supported.binaryBlob = !Supports.isIOS;
-        } catch (e) {
-        }
+        } catch (e) {}
       } catch (e) {
       } finally {
         if (dc) {
@@ -86,9 +89,11 @@ export const util = new class {
 
   // Binary stuff
 
-  private _dataCount: number = 1;
+  private _dataCount = 1;
 
-  chunk(blob: Blob): { __peerData: number, n: number, total: number, data: Blob }[] {
+  chunk(
+    blob: Blob,
+  ): { __peerData: number; n: number; total: number; data: Blob }[] {
     const chunks = [];
     const size = blob.size;
     const total = Math.ceil(size / util.chunkedMTU);
@@ -118,7 +123,10 @@ export const util = new class {
     return chunks;
   }
 
-  blobToArrayBuffer(blob: Blob, cb: (arg: ArrayBuffer | null) => void): FileReader {
+  blobToArrayBuffer(
+    blob: Blob,
+    cb: (arg: ArrayBuffer | null) => void,
+  ): FileReader {
     const fr = new FileReader();
 
     fr.onload = function (evt) {
@@ -143,12 +151,10 @@ export const util = new class {
   }
 
   randomToken(): string {
-    return Math.random()
-      .toString(36)
-      .substr(2);
+    return Math.random().toString(36).substr(2);
   }
 
   isSecure(): boolean {
     return location.protocol === "https:";
   }
-}
+})();

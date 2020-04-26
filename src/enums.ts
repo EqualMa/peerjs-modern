@@ -4,12 +4,12 @@ export enum ConnectionEventType {
   Data = "data",
   Close = "close",
   Error = "error",
-  IceStateChanged = "iceStateChanged"
+  IceStateChanged = "iceStateChanged",
 }
 
 export enum ConnectionType {
   Data = "data",
-  Media = "media"
+  Media = "media",
 }
 
 export enum PeerEventType {
@@ -18,7 +18,7 @@ export enum PeerEventType {
   Connection = "connection",
   Call = "call",
   Disconnected = "disconnected",
-  Error = "error"
+  Error = "error",
 }
 
 export enum PeerErrorType {
@@ -33,20 +33,20 @@ export enum PeerErrorType {
   SocketError = "socket-error",
   SocketClosed = "socket-closed",
   UnavailableID = "unavailable-id",
-  WebRTC = "webrtc"
+  WebRTC = "webrtc",
 }
 
 export enum SerializationType {
   Binary = "binary",
   BinaryUTF8 = "binary-utf8",
-  JSON = "json"
+  JSON = "json",
 }
 
 export enum SocketEventType {
   Message = "message",
   Disconnected = "disconnected",
   Error = "error",
-  Close = "close"
+  Close = "close",
 }
 
 export enum ServerMessageType {
@@ -59,6 +59,5 @@ export enum ServerMessageType {
   IdTaken = "ID-TAKEN", // The selected ID is taken.
   InvalidKey = "INVALID-KEY", // The given API key cannot be found.
   Leave = "LEAVE", // Another peer has closed its connection to this peer.
-  Expire = "EXPIRE" // The offer sent to a peer has expired without response.
-
+  Expire = "EXPIRE", // The offer sent to a peer has expired without response.
 }
