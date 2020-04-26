@@ -1,77 +1,82 @@
 import { webRTCAdapter } from "./adapter";
 
-export const Supports = new (class {
-  readonly isIOS = ["iPad", "iPhone", "iPod"].includes(navigator.platform);
-  readonly supportedBrowsers = ["firefox", "chrome", "safari"];
+export function reportFeatureNotSupported(
+  feature: string,
+  error?: Error | string,
+) {
+  if (error) console.warn(`${feature} is not supported due to`, error);
+  else console.warn(`${feature} is not supported`);
+}
 
-  readonly minFirefoxVersion = 59;
-  readonly minChromeVersion = 72;
-  readonly minSafariVersion = 605;
+export const isIOS = ["iPad", "iPhone", "iPod"].includes(navigator.platform);
+export const supportedBrowsers = ["firefox", "chrome", "safari"];
+export const minFirefoxVersion = 59;
+export const minChromeVersion = 72;
+export const minSafariVersion = 605;
 
-  isWebRTCSupported(): boolean {
-    return typeof RTCPeerConnection !== "undefined";
-  }
+export function isWebRTCSupported(): boolean {
+  return typeof RTCPeerConnection !== "undefined";
+}
 
-  isBrowserSupported(): boolean {
-    const browser = this.getBrowser();
-    const version = this.getVersion();
+export function getBrowser(): string {
+  return webRTCAdapter.browserDetails.browser;
+}
 
-    const validBrowser = this.supportedBrowsers.includes(browser);
+export function getVersion(): number {
+  return webRTCAdapter.browserDetails.version || 0;
+}
 
-    if (!validBrowser) return false;
+export function isBrowserSupported(): boolean {
+  const browser = getBrowser();
+  const version = getVersion();
 
-    if (browser === "chrome") return version >= this.minChromeVersion;
-    if (browser === "firefox") return version >= this.minFirefoxVersion;
-    if (browser === "safari")
-      return !this.isIOS && version >= this.minSafariVersion;
+  const validBrowser = supportedBrowsers.includes(browser);
 
+  if (!validBrowser) return false;
+
+  if (browser === "chrome") return version >= minChromeVersion;
+  if (browser === "firefox") return version >= minFirefoxVersion;
+  if (browser === "safari") return !isIOS && version >= minSafariVersion;
+
+  return false;
+}
+
+export function isUnifiedPlanSupported(): boolean {
+  const browser = getBrowser();
+  const version = webRTCAdapter.browserDetails.version || 0;
+
+  if (browser === "chrome" && version < 72) return false;
+  if (browser === "firefox" && version >= 59) return true;
+  if (
+    !window.RTCRtpTransceiver ||
+    !("currentDirection" in RTCRtpTransceiver.prototype)
+  )
     return false;
-  }
 
-  getBrowser(): string {
-    return webRTCAdapter.browserDetails.browser;
-  }
+  let tempPc: RTCPeerConnection | undefined;
+  let supported = false;
 
-  getVersion(): number {
-    return webRTCAdapter.browserDetails.version || 0;
-  }
-
-  isUnifiedPlanSupported(): boolean {
-    const browser = this.getBrowser();
-    const version = webRTCAdapter.browserDetails.version || 0;
-
-    if (browser === "chrome" && version < 72) return false;
-    if (browser === "firefox" && version >= 59) return true;
-    if (
-      !window.RTCRtpTransceiver ||
-      !("currentDirection" in RTCRtpTransceiver.prototype)
-    )
-      return false;
-
-    let tempPc: RTCPeerConnection;
-    let supported = false;
-
-    try {
-      tempPc = new RTCPeerConnection();
-      tempPc.addTransceiver("audio");
-      supported = true;
-    } catch (e) {
-    } finally {
-      if (tempPc) {
-        tempPc.close();
-      }
+  try {
+    tempPc = new RTCPeerConnection();
+    tempPc.addTransceiver("audio");
+    supported = true;
+  } catch (err) {
+    reportFeatureNotSupported("unified plan");
+  } finally {
+    if (tempPc) {
+      tempPc.close();
     }
-
-    return supported;
   }
 
-  toString(): string {
-    return `Supports: 
-    browser:${this.getBrowser()} 
-    version:${this.getVersion()} 
-    isIOS:${this.isIOS} 
-    isWebRTCSupported:${this.isWebRTCSupported()} 
-    isBrowserSupported:${this.isBrowserSupported()} 
-    isUnifiedPlanSupported:${this.isUnifiedPlanSupported()}`;
-  }
-})();
+  return supported;
+}
+
+export function supportsInfoToString(): string {
+  return `Supports:
+    browser:${getBrowser()}
+    version:${getVersion()}
+    isIOS:${isIOS}
+    isWebRTCSupported:${isWebRTCSupported()}
+    isBrowserSupported:${isBrowserSupported()}
+    isUnifiedPlanSupported:${isUnifiedPlanSupported()}`;
+}
