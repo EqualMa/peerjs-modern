@@ -1,6 +1,15 @@
 import "./faker";
-import { util } from "../lib/util";
+import { supports } from "../src/util/supports";
 
 //enable support for WebRTC
-util.supports.audioVideo = true;
-util.randomToken = () => "testToken";
+supports.audioVideo = true;
+
+jest.mock("../src/util/id", () => {
+  const actual = jest.requireActual("../src/util/id");
+  return {
+    ...actual,
+    randomToken(): string {
+      return "testtoken";
+    },
+  };
+});

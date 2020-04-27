@@ -1,21 +1,20 @@
 import "./setup";
-import { expect } from "chai";
-import { Peer } from "../lib/peer";
+import { Peer } from "../src/peer";
 import { Server } from "mock-socket";
 import {
   ConnectionType,
   ServerMessageType,
   PeerErrorType,
   PeerEventType,
-} from "../lib/enums";
+} from "../src/enums";
 
 const createMockServer = (): Server => {
   const fakeURL = "ws://localhost:8080/peerjs?key=peerjs&id=1&token=testToken";
   const mockServer = new Server(fakeURL);
 
   mockServer.on("connection", (socket) => {
-    //@ts-ignore
-    socket.on("message", (data) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (socket as any).on("message", () => {
       socket.send("test message from mock server");
     });
 
@@ -29,11 +28,11 @@ describe("Peer", function () {
     it("shouldn't contains any connection", function () {
       const peer = new Peer();
 
-      expect(peer.open).to.be.false;
-      expect(peer.connections).to.be.empty;
-      expect(peer.id).to.be.null;
-      expect(peer.disconnected).to.be.false;
-      expect(peer.destroyed).to.be.false;
+      expect(peer.open).toBe(false);
+      expect(peer.connections).toEqual({});
+      expect(peer.id).toBeNull();
+      expect(peer.disconnected).toBe(false);
+      expect(peer.destroyed).toBe(false);
 
       peer.destroy();
     });
@@ -43,23 +42,23 @@ describe("Peer", function () {
     it("should contains id and key", function () {
       const peer = new Peer("1", { key: "anotherKey" });
 
-      expect(peer.id).to.eq("1");
-      expect(peer.options.key).to.eq("anotherKey");
+      expect(peer.id).toBe("1");
+      expect(peer.options.key).toBe("anotherKey");
 
       peer.destroy();
     });
   });
 
   describe("after call to peer #2", function () {
-    let mockServer;
+    let mockServer: Server;
 
-    before(function () {
+    beforeAll(function () {
       mockServer = createMockServer();
     });
 
     it("Peer#1 should has id #1", function (done) {
       const peer1 = new Peer("1", { port: 8080, host: "localhost" });
-      expect(peer1.open).to.be.false;
+      expect(peer1.open).toBe(false);
 
       const mediaOptions = {
         metadata: { var: "123" },
@@ -76,43 +75,48 @@ describe("Peer", function () {
 
       const mediaConnection = peer1.call("2", mediaStream, { ...mediaOptions });
 
-      expect(mediaConnection.connectionId).to.be.a("string");
-      expect(mediaConnection.type).to.eq(ConnectionType.Media);
-      expect(mediaConnection.peer).to.eq("2");
-      expect(mediaConnection.options).to.include(mediaOptions);
-      expect(mediaConnection.metadata).to.deep.eq(mediaOptions.metadata);
-      expect(mediaConnection.peerConnection.getSenders()[0].track.id).to.eq(
+      expect(mediaConnection).toBeDefined();
+      if (!mediaConnection) throw new Error("invalid state");
+
+      expect(typeof mediaConnection.connectionId).toBe("string");
+      expect(mediaConnection.type).toBe(ConnectionType.Media);
+      expect(mediaConnection.peer).toBe("2");
+      expect(mediaConnection.options).toStrictEqual(
+        expect.objectContaining(mediaOptions),
+      );
+      expect(mediaConnection.metadata).toStrictEqual(mediaOptions.metadata);
+      expect(mediaConnection.peerConnection?.getSenders()[0].track?.id).toBe(
         track.id,
       );
 
       peer1.once("open", (id) => {
-        expect(id).to.be.eq("1");
-        //@ts-ignore
-        expect(peer1._lastServerId).to.be.eq("1");
-        expect(peer1.disconnected).to.be.false;
-        expect(peer1.destroyed).to.be.false;
-        expect(peer1.open).to.be.true;
+        expect(id).toBe("1");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect((peer1 as any)._lastServerId).toBe("1");
+        expect(peer1.disconnected).toBe(false);
+        expect(peer1.destroyed).toBe(false);
+        expect(peer1.open).toBe(true);
 
         peer1.destroy();
 
-        expect(peer1.disconnected).to.be.true;
-        expect(peer1.destroyed).to.be.true;
-        expect(peer1.open).to.be.false;
-        expect(peer1.connections).to.be.empty;
+        expect(peer1.disconnected).toBe(true);
+        expect(peer1.destroyed).toBe(true);
+        expect(peer1.open).toBe(false);
+        expect(peer1.connections).toStrictEqual({});
 
         done();
       });
     });
 
-    after(function () {
+    afterAll(function () {
       mockServer.stop();
     });
   });
 
   describe("reconnect", function () {
-    let mockServer;
+    let mockServer: Server;
 
-    before(function () {
+    beforeAll(function () {
       mockServer = createMockServer();
     });
 
@@ -120,28 +124,28 @@ describe("Peer", function () {
       const peer1 = new Peer("1", { port: 8080, host: "localhost" });
 
       peer1.once("open", () => {
-        expect(peer1.open).to.be.true;
+        expect(peer1.open).toBe(true);
 
         peer1.once("disconnected", () => {
-          expect(peer1.disconnected).to.be.true;
-          expect(peer1.destroyed).to.be.false;
-          expect(peer1.open).to.be.false;
+          expect(peer1.disconnected).toBe(true);
+          expect(peer1.destroyed).toBe(false);
+          expect(peer1.open).toBe(false);
 
           peer1.once("open", (id) => {
-            expect(id).to.be.eq("1");
-            expect(peer1.disconnected).to.be.false;
-            expect(peer1.destroyed).to.be.false;
-            expect(peer1.open).to.be.true;
+            expect(id).toBe("1");
+            expect(peer1.disconnected).toBe(false);
+            expect(peer1.destroyed).toBe(false);
+            expect(peer1.open).toBe(true);
 
             peer1.once("disconnected", () => {
-              expect(peer1.disconnected).to.be.true;
-              expect(peer1.destroyed).to.be.false;
-              expect(peer1.open).to.be.false;
+              expect(peer1.disconnected).toBe(true);
+              expect(peer1.destroyed).toBe(false);
+              expect(peer1.open).toBe(false);
 
               peer1.once("close", () => {
-                expect(peer1.disconnected).to.be.true;
-                expect(peer1.destroyed).to.be.true;
-                expect(peer1.open).to.be.false;
+                expect(peer1.disconnected).toBe(true);
+                expect(peer1.destroyed).toBe(true);
+                expect(peer1.open).toBe(false);
 
                 done();
               });
@@ -163,26 +167,26 @@ describe("Peer", function () {
       const peer1 = new Peer("1", { port: 8080, host: "localhost" });
 
       peer1.once("disconnected", (id) => {
-        expect(id).to.be.eq("1");
-        expect(peer1.disconnected).to.be.true;
-        expect(peer1.destroyed).to.be.false;
-        expect(peer1.open).to.be.false;
+        expect(id).toBe("1");
+        expect(peer1.disconnected).toBe(true);
+        expect(peer1.destroyed).toBe(false);
+        expect(peer1.open).toBe(false);
 
         peer1.once("open", (id) => {
-          expect(id).to.be.eq("1");
-          expect(peer1.disconnected).to.be.false;
-          expect(peer1.destroyed).to.be.false;
-          expect(peer1.open).to.be.true;
+          expect(id).toBe("1");
+          expect(peer1.disconnected).toBe(false);
+          expect(peer1.destroyed).toBe(false);
+          expect(peer1.open).toBe(true);
 
           peer1.once("disconnected", () => {
-            expect(peer1.disconnected).to.be.true;
-            expect(peer1.destroyed).to.be.false;
-            expect(peer1.open).to.be.false;
+            expect(peer1.disconnected).toBe(true);
+            expect(peer1.destroyed).toBe(false);
+            expect(peer1.open).toBe(false);
 
             peer1.once("close", () => {
-              expect(peer1.disconnected).to.be.true;
-              expect(peer1.destroyed).to.be.true;
-              expect(peer1.open).to.be.false;
+              expect(peer1.disconnected).toBe(true);
+              expect(peer1.destroyed).toBe(true);
+              expect(peer1.open).toBe(false);
 
               done();
             });
@@ -203,12 +207,12 @@ describe("Peer", function () {
       const peer1 = new Peer({ port: 8080, host: "localhost" });
 
       peer1.once(PeerEventType.Error, (error) => {
-        expect(error.type).to.be.eq(PeerErrorType.ServerError);
+        expect(error.type).toBe(PeerErrorType.ServerError);
 
         peer1.once(PeerEventType.Close, () => {
-          expect(peer1.disconnected).to.be.true;
-          expect(peer1.destroyed).to.be.true;
-          expect(peer1.open).to.be.false;
+          expect(peer1.disconnected).toBe(true);
+          expect(peer1.destroyed).toBe(true);
+          expect(peer1.open).toBe(false);
 
           done();
         });
@@ -217,7 +221,7 @@ describe("Peer", function () {
       });
     });
 
-    after(function () {
+    afterAll(function () {
       mockServer.stop();
     });
   });

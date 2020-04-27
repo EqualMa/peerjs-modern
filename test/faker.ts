@@ -1,5 +1,4 @@
 import { WebSocket } from "mock-socket";
-import { adapter as _ } from "webrtc-adapter";
 
 const fakeGlobals = {
   WebSocket,
@@ -21,7 +20,7 @@ const fakeGlobals = {
     }
   },
   MediaStreamTrack: class MediaStreamTrack {
-    kind: string;
+    kind = "";
     id: string;
 
     private static _idCounter = 0;
@@ -33,9 +32,10 @@ const fakeGlobals = {
   RTCPeerConnection: class RTCPeerConnection {
     private _senders: RTCRtpSender[] = [];
 
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     close() {}
 
-    addTrack(track: MediaStreamTrack, ..._stream: MediaStream[]): RTCRtpSender {
+    addTrack(track: MediaStreamTrack): RTCRtpSender {
       const newSender = new RTCRtpSender();
       newSender.replaceTrack(track);
 
@@ -51,10 +51,10 @@ const fakeGlobals = {
     }
   },
   RTCRtpSender: class RTCRtpSender {
-    readonly dtmf: RTCDTMFSender | null;
-    readonly rtcpTransport: RTCDtlsTransport | null;
-    track: MediaStreamTrack | null;
-    readonly transport: RTCDtlsTransport | null;
+    readonly dtmf: RTCDTMFSender | null = null;
+    readonly rtcpTransport: RTCDtlsTransport | null = null;
+    track: MediaStreamTrack | null = null;
+    readonly transport: RTCDtlsTransport | null = null;
 
     replaceTrack(withTrack: MediaStreamTrack | null): Promise<void> {
       this.track = withTrack;
@@ -64,5 +64,4 @@ const fakeGlobals = {
   },
 };
 
-Object.assign(global, fakeGlobals);
-Object.assign(window, fakeGlobals);
+Object.assign(globalThis, fakeGlobals);
