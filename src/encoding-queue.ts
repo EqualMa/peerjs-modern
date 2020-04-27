@@ -59,6 +59,7 @@ export class EncodingQueue extends EventEmitter {
 
     this._processing = true;
 
-    this.fileReader.readAsArrayBuffer(this.queue.shift());
+    const blob = this.queue.shift();
+    if (blob) this.fileReader.readAsArrayBuffer(blob);
   }
 }
