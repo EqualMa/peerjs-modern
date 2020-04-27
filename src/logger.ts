@@ -25,34 +25,35 @@ class Logger {
     this._logLevel = logLevel;
   }
 
-  log(...args: any[]) {
+  log(...args: unknown[]) {
     if (this._logLevel >= LogLevel.All) {
       this._print(LogLevel.All, ...args);
     }
   }
 
-  warn(...args: any[]) {
+  warn(...args: unknown[]) {
     if (this._logLevel >= LogLevel.Warnings) {
       this._print(LogLevel.Warnings, ...args);
     }
   }
 
-  error(...args: any[]) {
+  error(...args: unknown[]) {
     if (this._logLevel >= LogLevel.Errors) {
       this._print(LogLevel.Errors, ...args);
     }
   }
 
-  setLogFunction(fn: (logLevel: LogLevel, ..._: any[]) => void): void {
+  setLogFunction(fn: (logLevel: LogLevel, ..._: unknown[]) => void): void {
     this._print = fn;
   }
 
-  private _print(logLevel: LogLevel, ...rest: any[]): void {
+  private _print(logLevel: LogLevel, ...rest: unknown[]): void {
     const copy = [LOG_PREFIX, ...rest];
 
-    for (const i in copy) {
-      if (copy[i] instanceof Error) {
-        copy[i] = "(" + copy[i].name + ") " + copy[i].message;
+    for (let i = 0; i < copy.length; i++) {
+      const el = copy[i];
+      if (el instanceof Error) {
+        copy[i] = "(" + el.name + ") " + el.message;
       }
     }
 
@@ -66,4 +67,5 @@ class Logger {
   }
 }
 
+export type { Logger };
 export default new Logger();
