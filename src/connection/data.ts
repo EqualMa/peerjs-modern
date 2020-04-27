@@ -11,7 +11,6 @@ import { Peer } from "./peer";
 import { BaseConnection } from "./baseconnection";
 import { ServerMessage } from "./servermessage";
 import { EncodingQueue } from "./encodingQueue";
-import { DataConnection as IDataConnection } from "../index";
 
 /**
  * Wraps a DataChannel between two Peers.

@@ -1,15 +1,15 @@
 import { EventEmitter } from "eventemitter3";
-import { Peer } from "./peer";
-import { ServerMessage } from "./servermessage";
-import { ConnectionType } from "./enums";
+import { Peer } from "../peer";
+import { ConnectionType } from "../enums";
+import { BaseConnectionOptions, ServerMessage } from ".";
 
 export abstract class BaseConnection extends EventEmitter {
   protected _open = false;
 
-  readonly metadata: any;
-  connectionId: string;
+  readonly metadata: unknown;
+  connectionId: string | undefined;
 
-  peerConnection: RTCPeerConnection;
+  peerConnection: RTCPeerConnection | null = null;
 
   abstract get type(): ConnectionType;
 
@@ -20,7 +20,7 @@ export abstract class BaseConnection extends EventEmitter {
   constructor(
     readonly peer: string,
     public provider: Peer,
-    readonly options: any,
+    readonly options: BaseConnectionOptions,
   ) {
     super();
 
@@ -29,5 +29,5 @@ export abstract class BaseConnection extends EventEmitter {
 
   abstract close(): void;
 
-  abstract handleMessage(message: ServerMessage): void;
+  abstract handleMessage<P = unknown>(message: ServerMessage<P>): void;
 }

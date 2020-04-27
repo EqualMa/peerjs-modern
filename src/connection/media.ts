@@ -1,15 +1,18 @@
-import { util } from "./util";
-import logger from "./logger";
-import { Negotiator } from "./negotiator";
+import { randomToken } from "../util/id";
+import logger from "../logger";
+import { Negotiator } from "../negotiator";
 import {
   ConnectionType,
   ConnectionEventType,
   ServerMessageType,
-} from "./enums";
-import { Peer } from "./peer";
-import { BaseConnection } from "./baseconnection";
-import { ServerMessage } from "./servermessage";
-import { AnswerOption } from "..";
+} from "../enums";
+import type { Peer } from "../peer";
+import { BaseConnection } from "./base";
+import type { ServerMessage } from ".";
+
+export interface AnswerOption {
+  sdpTransform?: Function;
+}
 
 /**
  * Wraps the streaming interface between two Peers.
@@ -19,7 +22,7 @@ export class MediaConnection extends BaseConnection {
 
   private _negotiator: Negotiator;
   private _localStream: MediaStream;
-  private _remoteStream: MediaStream;
+  private _remoteStream: MediaStream | undefined;
 
   get type() {
     return ConnectionType.Media;
@@ -28,7 +31,7 @@ export class MediaConnection extends BaseConnection {
   get localStream(): MediaStream {
     return this._localStream;
   }
-  get remoteStream(): MediaStream {
+  get remoteStream(): MediaStream | undefined {
     return this._remoteStream;
   }
 
@@ -37,8 +40,7 @@ export class MediaConnection extends BaseConnection {
 
     this._localStream = this.options._stream;
     this.connectionId =
-      this.options.connectionId ||
-      MediaConnection.ID_PREFIX + util.randomToken();
+      this.options.connectionId || MediaConnection.ID_PREFIX + randomToken();
 
     this._negotiator = new Negotiator(this);
 
