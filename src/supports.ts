@@ -1,11 +1,12 @@
 import { webRTCAdapter } from "./adapter";
+import logger from "./logger";
 
 export function reportFeatureNotSupported(
   feature: string,
   error?: Error | string,
 ) {
-  if (error) console.warn(`${feature} is not supported due to`, error);
-  else console.warn(`${feature} is not supported`);
+  if (error) logger.warn(`${feature} is not supported due to`, error);
+  else logger.warn(`${feature} is not supported`);
 }
 
 export const isIOS = ["iPad", "iPhone", "iPod"].includes(navigator.platform);
