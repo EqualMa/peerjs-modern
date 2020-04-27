@@ -146,9 +146,12 @@ export class Peer extends EventEmitter {
     return this._disconnected;
   }
 
-  constructor(id?: string, options?: PeerOptions);
-  constructor(options?: PeerOptions);
-  constructor(id?: string | PeerOptions, options?: PeerOptions) {
+  constructor(id?: string, options?: Partial<PeerOptions>);
+  constructor(options?: Partial<PeerOptions>);
+  constructor(
+    id?: string | Partial<PeerOptions>,
+    options?: Partial<PeerOptions>,
+  ) {
     super();
 
     let userId: string | undefined;
