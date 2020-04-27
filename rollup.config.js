@@ -49,7 +49,6 @@ export default {
       baseContents: getPkgJsonBaseContents,
       additionalDependencies: [
         // types
-        "@types/node",
         "@types/webrtc",
       ],
       outputFolder: "dist",

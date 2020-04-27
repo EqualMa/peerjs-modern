@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      // dependencies
+      "webrtc"
+    ]
+  },
   "include": ["src/**/*.ts", "test/**/*.ts", "*.js", "scripts/**/*.js"]
 }
