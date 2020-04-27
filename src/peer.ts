@@ -514,7 +514,7 @@ export class Peer extends EventEmitter {
 
     this.emitError(type, message);
 
-    if (!this._lastServerId) {
+    if (!this.__lastServerId) {
       this.destroy();
     } else {
       this.disconnect();
