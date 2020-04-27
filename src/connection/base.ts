@@ -1,13 +1,95 @@
 import { EventEmitter } from "eventemitter3";
-import { Peer } from "../peer";
-import { ConnectionType } from "../enums";
-import { BaseConnectionOptions, ServerMessage } from ".";
+import type { Peer } from "../peer";
+import type {
+  ConnectionType,
+  ServerMessageType,
+  SerializationType,
+} from "../enums";
+import type { MediaConnectionOptions } from "./media";
+import type { DataConnectionOptions } from "./data";
 
-export abstract class BaseConnection extends EventEmitter {
+export interface ServerMessageBase {
+  type: ServerMessageType;
+  payload: unknown;
+  src: string;
+}
+
+interface ServerOfferMessageBase<T extends ConnectionType> {
+  type: T;
+  sdp: RTCSessionDescriptionInit;
+  browser: string;
+}
+export interface ServerOfferMediaConnectionMessage
+  extends MediaConnectionOptions,
+    ServerOfferMessageBase<ConnectionType.Media> {
+  connectionId: string;
+}
+
+export interface ServerOfferDataConnectionMessage
+  extends DataConnectionOptions,
+    ServerOfferMessageBase<ConnectionType.Data> {
+  connectionId: string;
+}
+
+export interface ServerOfferMessage extends ServerMessageBase {
+  type: ServerMessageType.Offer;
+  payload: ServerOfferMediaConnectionMessage | ServerOfferDataConnectionMessage;
+}
+
+export interface ServerErrorMessage extends ServerMessageBase {
+  type: ServerMessageType.Error;
+  payload: {
+    msg: Error | string;
+  };
+}
+
+export interface ServerAnswerMessage extends ServerMessageBase {
+  type: ServerMessageType.Answer;
+  payload: {
+    sdp: RTCSessionDescriptionInit | undefined;
+  };
+}
+
+export interface ServerCandidateMessage extends ServerMessageBase {
+  type: ServerMessageType.Candidate;
+  payload: {
+    candidate: RTCIceCandidateInit;
+  };
+}
+
+export interface ServerSimpleMessage extends ServerMessageBase {
+  type:
+    | ServerMessageType.Open
+    | ServerMessageType.IdTaken
+    | ServerMessageType.InvalidKey
+    | ServerMessageType.Leave
+    | ServerMessageType.Expire;
+}
+
+export type ServerMessage =
+  | ServerOfferMessage
+  | ServerErrorMessage
+  | ServerAnswerMessage
+  | ServerCandidateMessage
+  | ServerSimpleMessage;
+
+export interface BaseConnectionOptions {
+  connectionId?: string;
+  label?: string;
+  metadata?: unknown;
+  serialization?: SerializationType;
+  reliable?: boolean;
+  constraints?: RTCOfferOptions;
+  sdpTransform?: Function;
+}
+
+export abstract class BaseConnection<
+  O extends BaseConnectionOptions = BaseConnectionOptions
+> extends EventEmitter {
   protected _open = false;
 
   readonly metadata: unknown;
-  connectionId: string | undefined;
+  abstract connectionId: string;
 
   peerConnection: RTCPeerConnection | null = null;
 
@@ -17,17 +99,19 @@ export abstract class BaseConnection extends EventEmitter {
     return this._open;
   }
 
-  constructor(
-    readonly peer: string,
-    public provider: Peer,
-    readonly options: BaseConnectionOptions,
-  ) {
-    super();
+  protected _provider: Peer | null;
+  get provider(): Peer {
+    if (!this._provider) throw new Error("provider is invalid");
+    return this._provider;
+  }
 
+  constructor(readonly peer: string, provider: Peer, readonly options: O) {
+    super();
+    this._provider = provider;
     this.metadata = options.metadata;
   }
 
   abstract close(): void;
 
-  abstract handleMessage<P = unknown>(message: ServerMessage<P>): void;
+  abstract handleMessage(message: ServerMessage): void;
 }

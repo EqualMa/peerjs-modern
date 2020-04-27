@@ -1,46 +1,106 @@
 import { EventEmitter } from "eventemitter3";
-import { util } from "./util";
 import logger, { LogLevel } from "./logger";
 import { Socket } from "./socket";
-import { MediaConnection } from "./mediaconnection";
-import { DataConnection } from "./dataconnection";
+import {
+  MediaConnection,
+  DataConnection,
+  BaseConnection,
+  ServerMessage,
+} from "./connection";
 import {
   ConnectionType,
   PeerErrorType,
   PeerEventType,
   SocketEventType,
   ServerMessageType,
+  SerializationType,
 } from "./enums";
-import { BaseConnection } from "./baseconnection";
-import { ServerMessage } from "./servermessage";
 import { API } from "./api";
-import { PeerConnectOption, PeerJSOption } from "..";
+import { randomToken, validateId } from "./util/id";
+import { supports } from "./util/supports";
+import * as c from "./util/constants";
+import { isSecure } from "./util/secure";
 
-class PeerOptions implements PeerJSOption {
-  debug?: LogLevel; // 1: Errors, 2: Warnings, 3: All logs
-  host?: string;
-  port?: number;
-  path?: string;
-  key?: string;
-  token?: string;
-  config?: any;
-  secure?: boolean;
+export interface PeerConnectOptions {
+  label?: string;
+  metadata?: unknown;
+  serialization?: SerializationType;
+  reliable?: boolean;
+}
+
+export interface CallOptions {
+  metadata?: unknown;
+  sdpTransform?: Function;
+}
+
+export interface AnswerOptions {
+  sdpTransform?: Function;
+}
+
+export interface PeerOptions {
+  key: string;
+  host: string;
+  port: number;
+  path: string;
+  secure: boolean;
+  config: RTCConfiguration;
+  /** 1: Errors, 2: Warnings, 3: All logs */
+  debug: LogLevel;
+  token: string;
   pingInterval?: number;
-  logFunction?: (logLevel: LogLevel, ...rest: any[]) => void;
+  logFunction?: (logLevel: LogLevel, ...rest: unknown[]) => void;
+}
+
+const PEER_DEFAULT_KEY = "peerjs";
+
+function normalizePeerOptions(opts: Partial<PeerOptions> = {}): PeerOptions {
+  // Detect relative URL host.
+  let host: string = opts.host || c.CLOUD_HOST;
+  if (host === "/") host = window.location.hostname;
+
+  let path = "/";
+  // Set path correctly.
+  if (opts.path) {
+    path = opts.path;
+    if (!path.startsWith("/")) path = "/" + path;
+    if (!opts.path.endsWith("/")) path = path + "/";
+  }
+
+  // Set whether we use SSL to same as current host
+  const secure: boolean =
+    opts.secure === undefined && host !== c.CLOUD_HOST
+      ? isSecure()
+      : host === c.CLOUD_HOST;
+
+  return {
+    debug: opts.debug || LogLevel.Disabled,
+    host,
+    port: opts.port || c.CLOUD_PORT,
+    path,
+    key: opts.key || PEER_DEFAULT_KEY,
+    token: opts.token || randomToken(),
+    config: opts.config || c.defaultConfig,
+    logFunction: undefined,
+    secure,
+    pingInterval: opts.pingInterval,
+  };
 }
 
 /**
  * A peer who can initiate connections with other peers.
  */
 export class Peer extends EventEmitter {
-  private static readonly DEFAULT_KEY = "peerjs";
-
   private readonly _options: PeerOptions;
   private readonly _api: API;
   private readonly _socket: Socket;
 
   private _id: string | null = null;
-  private _lastServerId: string | null = null;
+  private __lastServerId: string | null = null;
+  private get _lastServerId(): string {
+    if (!this.__lastServerId)
+      throw new Error("_lastServerId is not a valid string");
+    return this.__lastServerId;
+  }
 
   // States.
   private _destroyed = false; // Connections have been killed
@@ -69,7 +129,7 @@ export class Peer extends EventEmitter {
    * @deprecated
    * Return type will change from Object to Map<string,[]>
    */
-  get connections(): Record<string, any> {
+  get connections(): Record<string, BaseConnection> {
     const plainConnections = Object.create(null);
 
     for (const [k, v] of this._connections) {
@@ -86,68 +146,43 @@ export class Peer extends EventEmitter {
     return this._disconnected;
   }
 
+  constructor(id?: string, options?: PeerOptions);
+  constructor(options?: PeerOptions);
   constructor(id?: string | PeerOptions, options?: PeerOptions) {
     super();
 
     let userId: string | undefined;
 
     // Deal with overloading
-    if (id && id.constructor == Object) {
-      options = id as PeerOptions;
+    if (id && typeof id === "object") {
+      options = id;
     } else if (id) {
       userId = id.toString();
     }
 
     // Configurize options
-    options = {
-      debug: 0, // 1: Errors, 2: Warnings, 3: All logs
-      host: util.CLOUD_HOST,
-      port: util.CLOUD_PORT,
-      path: "/",
-      key: Peer.DEFAULT_KEY,
-      token: util.randomToken(),
-      config: util.defaultConfig,
-      ...options,
-    };
-    this._options = options;
+    const opts = normalizePeerOptions(options);
+    this._options = opts;
 
-    // Detect relative URL host.
-    if (this._options.host === "/") {
-      this._options.host = window.location.hostname;
-    }
-
-    // Set path correctly.
-    if (this._options.path) {
-      if (!this._options.path.startsWith("/")) {
-        this._options.path = "/" + this._options.path;
-      }
-      if (!this._options.path.endsWith("/")) {
-        this._options.path += "/";
-      }
-    }
-
-    // Set whether we use SSL to same as current host
-    if (
-      this._options.secure === undefined &&
-      this._options.host !== util.CLOUD_HOST
-    ) {
-      this._options.secure = util.isSecure();
-    } else if (this._options.host == util.CLOUD_HOST) {
-      this._options.secure = true;
-    }
     // Set a custom log function if present
-    if (this._options.logFunction) {
-      logger.setLogFunction(this._options.logFunction);
+    if (opts.logFunction) {
+      logger.setLogFunction(opts.logFunction);
     }
+    logger.logLevel = opts.debug;
 
-    logger.logLevel = this._options.debug || 0;
+    this._api = new API({
+      host: opts.host,
+      key: opts.key,
+      path: opts.path,
+      port: opts.port,
+      secure: opts.secure,
+    });
 
-    this._api = new API(options);
     this._socket = this._createServerConnection();
 
     // Sanity checks
     // Ensure WebRTC supported
-    if (!util.supports.audioVideo && !util.supports.data) {
+    if (!supports.audioVideo && !supports.data) {
       this._delayedAbort(
         PeerErrorType.BrowserIncompatible,
         "The current browser does not support WebRTC",
@@ -156,7 +191,7 @@ export class Peer extends EventEmitter {
     }
 
     // Ensure alphanumeric id
-    if (!!userId && !util.validateId(userId)) {
+    if (!!userId && !validateId(userId)) {
       this._delayedAbort(PeerErrorType.InvalidID, `ID "${userId}" is invalid`);
       return;
     }
@@ -174,10 +209,10 @@ export class Peer extends EventEmitter {
   private _createServerConnection(): Socket {
     const socket = new Socket(
       this._options.secure,
-      this._options.host!,
-      this._options.port!,
-      this._options.path!,
-      this._options.key!,
+      this._options.host,
+      this._options.port,
+      this._options.path,
+      this._options.key,
       this._options.pingInterval,
     );
 
@@ -215,23 +250,21 @@ export class Peer extends EventEmitter {
   /** Initialize a connection with the server. */
   private _initialize(id: string): void {
     this._id = id;
-    this.socket.start(id, this._options.token!);
+    this.socket.start(id, this._options.token);
   }
 
   /** Handles messages from the server. */
   private _handleMessage(message: ServerMessage): void {
-    const type = message.type;
-    const payload = message.payload;
     const peerId = message.src;
 
-    switch (type) {
+    switch (message.type) {
       case ServerMessageType.Open: // The connection to the server is open.
-        this._lastServerId = this.id;
+        this.__lastServerId = this.id;
         this._open = true;
         this.emit(PeerEventType.Open, this.id);
         break;
       case ServerMessageType.Error: // Server error.
-        this._abort(PeerErrorType.ServerError, payload.msg);
+        this._abort(PeerErrorType.ServerError, message.payload.msg);
         break;
       case ServerMessageType.IdTaken: // The selected ID is taken.
         this._abort(PeerErrorType.UnavailableID, `ID "${this.id}" is taken`);
@@ -254,6 +287,7 @@ export class Peer extends EventEmitter {
         );
         break;
       case ServerMessageType.Offer: {
+        const payload = message.payload;
         // we should consider switching this to CALL/CONNECT, but this is the least breaking option.
         const connectionId = payload.connectionId;
         let connection = this.getConnection(peerId, connectionId);
@@ -270,6 +304,7 @@ export class Peer extends EventEmitter {
           connection = new MediaConnection(peerId, this, {
             connectionId: connectionId,
             _payload: payload,
+            _stream: null,
             metadata: payload.metadata,
           });
           this._addConnection(peerId, connection);
@@ -286,7 +321,7 @@ export class Peer extends EventEmitter {
           this._addConnection(peerId, connection);
           this.emit(PeerEventType.Connection, connection);
         } else {
-          logger.warn(`Received malformed connection type:${payload.type}`);
+          logger.warn(`Received malformed connection type:${payload["type"]}`);
           return;
         }
 
@@ -299,6 +334,9 @@ export class Peer extends EventEmitter {
         break;
       }
       default: {
+        // TODO need stricter
+        const payload = message["payload"];
+        const type = message["type"];
         if (!payload) {
           logger.warn(
             `You received a malformed message from ${peerId} of type ${type}`,
@@ -306,7 +344,8 @@ export class Peer extends EventEmitter {
           return;
         }
 
-        const connectionId = payload.connectionId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const connectionId = (payload as any).connectionId;
         const connection = this.getConnection(peerId, connectionId);
 
         if (connection && connection.peerConnection) {
@@ -325,11 +364,12 @@ export class Peer extends EventEmitter {
 
   /** Stores messages without a set up connection, to be claimed later. */
   private _storeMessage(connectionId: string, message: ServerMessage): void {
-    if (!this._lostMessages.has(connectionId)) {
-      this._lostMessages.set(connectionId, []);
+    let msgs = this._lostMessages.get(connectionId);
+    if (!msgs) {
+      msgs = [];
+      this._lostMessages.set(connectionId, msgs);
     }
-
-    this._lostMessages.get(connectionId).push(message);
+    msgs.push(message);
   }
 
   /** Retrieve messages from lost message store */
@@ -349,7 +389,10 @@ export class Peer extends EventEmitter {
    * Returns a DataConnection to the specified peer. See documentation for a
    * complete list of options.
    */
-  connect(peer: string, options: PeerConnectOption = {}): DataConnection {
+  connect(
+    peer: string,
+    options: PeerConnectOptions = {},
+  ): DataConnection | undefined {
     if (this.disconnected) {
       logger.warn(
         "You cannot connect to a new Peer because you called " +
@@ -373,7 +416,11 @@ export class Peer extends EventEmitter {
    * Returns a MediaConnection to the specified peer. See documentation for a
    * complete list of options.
    */
-  call(peer: string, stream: MediaStream, options: any = {}): MediaConnection {
+  call(
+    peer: string,
+    stream: MediaStream,
+    options: CallOptions = {},
+  ): MediaConnection | undefined {
     if (this.disconnected) {
       logger.warn(
         "You cannot connect to a new Peer because you called " +
@@ -394,9 +441,10 @@ export class Peer extends EventEmitter {
       return;
     }
 
-    options._stream = stream;
-
-    const mediaConnection = new MediaConnection(peer, this, options);
+    const mediaConnection = new MediaConnection(peer, this, {
+      ...options, // TODO stricter
+      _stream: stream,
+    });
     this._addConnection(peer, mediaConnection);
     return mediaConnection;
   }
@@ -407,10 +455,12 @@ export class Peer extends EventEmitter {
       `add connection ${connection.type}:${connection.connectionId} to peerId:${peerId}`,
     );
 
-    if (!this._connections.has(peerId)) {
-      this._connections.set(peerId, []);
+    let conns = this._connections.get(peerId);
+    if (!conns) {
+      conns = [];
+      this._connections.set(peerId, conns);
     }
-    this._connections.get(peerId).push(connection);
+    conns.push(connection);
   }
 
   //TODO should be private
@@ -547,7 +597,7 @@ export class Peer extends EventEmitter {
 
     this.socket.close();
 
-    this._lastServerId = currentId;
+    this.__lastServerId = currentId;
     this._id = null;
 
     this.emit(PeerEventType.Disconnected, currentId);
@@ -560,7 +610,7 @@ export class Peer extends EventEmitter {
         `Attempting reconnection to server with ID ${this._lastServerId}`,
       );
       this._disconnected = false;
-      this._initialize(this._lastServerId!);
+      this._initialize(this._lastServerId);
     } else if (this.destroyed) {
       throw new Error(
         "This peer cannot reconnect to the server. It has already been destroyed.",
@@ -583,10 +633,12 @@ export class Peer extends EventEmitter {
    * the cloud server, email team@peerjs.com to get the functionality enabled for
    * your key.
    */
-  listAllPeers(cb = (_: any[]) => {}): void {
+  listAllPeers(cb: (peers: unknown[]) => void): void {
     this._api
       .listAllPeers()
-      .then((peers) => cb(peers))
+      .then((peers) => {
+        if (typeof cb === "function") cb(peers);
+      })
       .catch((error) => this._abort(PeerErrorType.ServerError, error));
   }
 }

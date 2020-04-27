@@ -1,38 +1,70 @@
-import { util } from "./util";
+import * as supports from "./util/supports";
 import logger from "./logger";
-import { MediaConnection } from "./mediaconnection";
-import { DataConnection } from "./dataconnection";
+import { MediaConnection, DataConnection } from "./connection";
 import {
   ConnectionType,
   PeerErrorType,
   ConnectionEventType,
   ServerMessageType,
 } from "./enums";
-import { BaseConnection } from "./baseconnection";
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const noop = () => {};
+
+export type Connection = DataConnection | MediaConnection;
+
+export type NegotiatorStartConnectionBaseOptions =
+  | { originator: boolean; sdp?: never }
+  | { originator?: never; sdp: RTCSessionDescriptionInit }; // TODO
+interface PartialOptionsForData {
+  reliable: boolean;
+}
+interface PartialOptionsForMedia {
+  _stream: MediaStream;
+}
+
+interface PartialOptionsTypes {
+  [ConnectionType.Data]: PartialOptionsForData;
+  [ConnectionType.Media]: PartialOptionsForMedia;
+}
+
+type OptsOf<C extends Connection> = PartialOptionsTypes[C["type"]] &
+  NegotiatorStartConnectionBaseOptions;
+
+export type NegotiatorStartDataConnectionOptions = OptsOf<DataConnection>;
+export type NegotiatorStartMediaConnectionOptions = OptsOf<MediaConnection>;
 
 /**
  * Manages all negotiations between Peers.
  */
-export class Negotiator {
-  constructor(readonly connection: BaseConnection) {}
+export class Negotiator<C extends Connection> {
+  constructor(readonly connection: C) {}
 
   /** Returns a PeerConnection object set up correctly (for data, media). */
-  startConnection(options: any) {
+  startConnection(options: OptsOf<C>) {
     const peerConnection = this._startPeerConnection();
 
     // Set the connection's PC.
     this.connection.peerConnection = peerConnection;
 
-    if (this.connection.type === ConnectionType.Media && options._stream) {
-      this._addTracksToConnection(options._stream, peerConnection);
+    if (
+      this.connection.type === ConnectionType.Media &&
+      (options as NegotiatorStartMediaConnectionOptions)._stream
+    ) {
+      this._addTracksToConnection(
+        (options as NegotiatorStartMediaConnectionOptions)._stream,
+        peerConnection,
+      );
     }
 
     // What do we need to do now?
     if (options.originator) {
       if (this.connection.type === ConnectionType.Data) {
-        const dataConnection = <DataConnection>this.connection;
+        const dataConnection = this.connection as DataConnection;
 
-        const config: RTCDataChannelInit = { ordered: !!options.reliable };
+        const config: RTCDataChannelInit = {
+          ordered: !!(options as NegotiatorStartDataConnectionOptions).reliable,
+        };
 
         const dataChannel = peerConnection.createDataChannel(
           dataConnection.label,
@@ -120,7 +152,7 @@ export class Negotiator {
           this.connection.close();
           break;
         case "completed":
-          peerConnection.onicecandidate = util.noop;
+          peerConnection.onicecandidate = noop;
           break;
       }
 
@@ -138,9 +170,10 @@ export class Negotiator {
       logger.log("Received data channel");
 
       const dataChannel = evt.channel;
-      const connection = <DataConnection>(
-        provider.getConnection(peerId, connectionId)
-      );
+      const connection = provider.getConnection(
+        peerId,
+        connectionId,
+      ) as DataConnection;
 
       connection.initialize(dataChannel);
     };
@@ -154,10 +187,10 @@ export class Negotiator {
       const stream = evt.streams[0];
       const connection = provider.getConnection(peerId, connectionId);
 
-      if (connection.type === ConnectionType.Media) {
-        const mediaConnection = <MediaConnection>connection;
+      if (!connection) throw new Error("connection is null");
 
-        this._addStreamToMediaConnection(stream, mediaConnection);
+      if (connection.type === ConnectionType.Media) {
+        this._addStreamToMediaConnection(stream, connection as MediaConnection);
       }
     };
   }
@@ -174,13 +207,13 @@ export class Negotiator {
     this.connection.peerConnection = null;
 
     //unsubscribe from all PeerConnection's events
-    peerConnection.onicecandidate = peerConnection.oniceconnectionstatechange = peerConnection.ondatachannel = peerConnection.ontrack = () => {};
+    peerConnection.onicecandidate = peerConnection.oniceconnectionstatechange = peerConnection.ondatachannel = peerConnection.ontrack = noop;
 
     const peerConnectionNotClosed = peerConnection.signalingState !== "closed";
     let dataChannelNotClosed = false;
 
     if (this.connection.type === ConnectionType.Data) {
-      const dataConnection = <DataConnection>this.connection;
+      const dataConnection = this.connection as DataConnection;
       const dataChannel = dataConnection.dataChannel;
 
       if (dataChannel) {
@@ -194,8 +227,14 @@ export class Negotiator {
     }
   }
 
+  private getPeerConnection() {
+    const conn = this.connection.peerConnection;
+    if (!conn) throw new Error("connection.peerConnection is null");
+    return conn;
+  }
+
   private async _makeOffer(): Promise<void> {
-    const peerConnection = this.connection.peerConnection;
+    const peerConnection = this.getPeerConnection();
     const provider = this.connection.provider;
 
     try {
@@ -222,19 +261,19 @@ export class Negotiator {
           `for:${this.connection.peer}`,
         );
 
-        let payload: any = {
+        let payload: unknown = {
           sdp: offer,
           type: this.connection.type,
           connectionId: this.connection.connectionId,
           metadata: this.connection.metadata,
-          browser: util.browser,
+          browser: supports.browser,
         };
 
         if (this.connection.type === ConnectionType.Data) {
-          const dataConnection = <DataConnection>this.connection;
+          const dataConnection = this.connection as DataConnection;
 
           payload = {
-            ...payload,
+            ...(payload as object),
             label: dataConnection.label,
             reliable: dataConnection.reliable,
             serialization: dataConnection.serialization,
@@ -256,14 +295,14 @@ export class Negotiator {
           logger.log("Failed to setLocalDescription, ", err);
         }
       }
-    } catch (err_1) {
-      provider.emitError(PeerErrorType.WebRTC, err_1);
-      logger.log("Failed to createOffer, ", err_1);
+    } catch (err1) {
+      provider.emitError(PeerErrorType.WebRTC, err1);
+      logger.log("Failed to createOffer, ", err1);
     }
   }
 
   private async _makeAnswer(): Promise<void> {
-    const peerConnection = this.connection.peerConnection;
+    const peerConnection = this.getPeerConnection();
     const provider = this.connection.provider;
 
     try {
@@ -293,7 +332,7 @@ export class Negotiator {
             sdp: answer,
             type: this.connection.type,
             connectionId: this.connection.connectionId,
-            browser: util.browser,
+            browser: supports.browser,
           },
           dst: this.connection.peer,
         });
@@ -301,27 +340,28 @@ export class Negotiator {
         provider.emitError(PeerErrorType.WebRTC, err);
         logger.log("Failed to setLocalDescription, ", err);
       }
-    } catch (err_1) {
-      provider.emitError(PeerErrorType.WebRTC, err_1);
-      logger.log("Failed to create answer, ", err_1);
+    } catch (err1) {
+      provider.emitError(PeerErrorType.WebRTC, err1);
+      logger.log("Failed to create answer, ", err1);
     }
   }
 
   /** Handle an SDP. */
-  async handleSDP(type: string, sdp: any): Promise<void> {
+  async handleSDP(
+    type: string,
+    sdp: RTCSessionDescriptionInit | undefined,
+  ): Promise<void> {
     sdp = new RTCSessionDescription(sdp);
-    const peerConnection = this.connection.peerConnection;
+    const peerConnection = this.getPeerConnection();
     const provider = this.connection.provider;
 
     logger.log("Setting remote description", sdp);
-
-    const self = this;
 
     try {
       await peerConnection.setRemoteDescription(sdp);
       logger.log(`Set remoteDescription:${type} for:${this.connection.peer}`);
       if (type === "OFFER") {
-        await self._makeAnswer();
+        await this._makeAnswer();
       }
     } catch (err) {
       provider.emitError(PeerErrorType.WebRTC, err);
@@ -330,13 +370,13 @@ export class Negotiator {
   }
 
   /** Handle a candidate. */
-  async handleCandidate(ice: any): Promise<void> {
+  async handleCandidate(ice: RTCIceCandidateInit): Promise<void> {
     logger.log(`handleCandidate:`, ice);
 
     const candidate = ice.candidate;
     const sdpMLineIndex = ice.sdpMLineIndex;
     const sdpMid = ice.sdpMid;
-    const peerConnection = this.connection.peerConnection;
+    const peerConnection = this.getPeerConnection();
     const provider = this.connection.provider;
 
     try {
@@ -360,7 +400,7 @@ export class Negotiator {
   ): void {
     logger.log(`add tracks from stream ${stream.id} to peer connection`);
 
-    if (!peerConnection.addTrack) {
+    if (typeof peerConnection.addTrack !== "function") {
       return logger.error(
         `Your browser does't support RTCPeerConnection#addTrack. Ignored.`,
       );

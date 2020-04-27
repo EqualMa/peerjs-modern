@@ -7,42 +7,52 @@ import {
   ServerMessageType,
 } from "../enums";
 import type { Peer } from "../peer";
-import { BaseConnection } from "./base";
-import type { ServerMessage } from ".";
+import { BaseConnection, ServerMessage, BaseConnectionOptions } from "./base";
 
 export interface AnswerOption {
   sdpTransform?: Function;
 }
 
+export interface MediaConnectionOptions extends BaseConnectionOptions {
+  _stream: MediaStream | null;
+  _payload?: MediaConnectionOptions;
+}
 /**
  * Wraps the streaming interface between two Peers.
  */
-export class MediaConnection extends BaseConnection {
+export class MediaConnection extends BaseConnection<MediaConnectionOptions> {
   private static readonly ID_PREFIX = "mc_";
 
-  private _negotiator: Negotiator;
-  private _localStream: MediaStream;
-  private _remoteStream: MediaStream | undefined;
+  private __negotiator: Negotiator<this> | null = null;
+  private get _negotiator(): Negotiator<this> {
+    if (!this.__negotiator) throw new Error("negotiator is invalid");
+    return this.__negotiator;
+  }
+  private _localStream: MediaStream | null = null;
+  private _remoteStream: MediaStream | null = null;
 
-  get type() {
+  connectionId: string;
+
+  get type(): ConnectionType.Media {
     return ConnectionType.Media;
   }
 
   get localStream(): MediaStream {
+    if (!this._localStream) throw new Error("_localStream is invalid");
     return this._localStream;
   }
-  get remoteStream(): MediaStream | undefined {
+  get remoteStream(): MediaStream | null {
     return this._remoteStream;
   }
 
-  constructor(peerId: string, provider: Peer, options: any) {
+  constructor(peerId: string, provider: Peer, options: MediaConnectionOptions) {
     super(peerId, provider, options);
 
     this._localStream = this.options._stream;
     this.connectionId =
       this.options.connectionId || MediaConnection.ID_PREFIX + randomToken();
 
-    this._negotiator = new Negotiator(this);
+    this.__negotiator = new Negotiator(this);
 
     if (this._localStream) {
       this._negotiator.startConnection({
@@ -52,7 +62,7 @@ export class MediaConnection extends BaseConnection {
     }
   }
 
-  addStream(remoteStream) {
+  addStream(remoteStream: MediaStream) {
     logger.log("Receiving stream", remoteStream);
 
     this._remoteStream = remoteStream;
@@ -60,20 +70,19 @@ export class MediaConnection extends BaseConnection {
   }
 
   handleMessage(message: ServerMessage): void {
-    const type = message.type;
-    const payload = message.payload;
-
     switch (message.type) {
       case ServerMessageType.Answer:
         // Forward to negotiator
-        this._negotiator.handleSDP(type, payload.sdp);
+        this._negotiator.handleSDP(message.type, message.payload.sdp);
         this._open = true;
         break;
       case ServerMessageType.Candidate:
-        this._negotiator.handleCandidate(payload.candidate);
+        this._negotiator.handleCandidate(message.payload.candidate);
         break;
       default:
-        logger.warn(`Unrecognized message type:${type} from peer:${this.peer}`);
+        logger.warn(
+          `Unrecognized message type:${message.type} from peer:${this.peer}`,
+        );
         break;
     }
   }
@@ -95,7 +104,7 @@ export class MediaConnection extends BaseConnection {
     this._negotiator.startConnection({
       ...this.options._payload,
       _stream: stream,
-    });
+    } as never);
     // Retrieve lost messages stored because PeerConnection not set up.
     const messages = this.provider._getMessages(this.connectionId);
 
@@ -114,7 +123,7 @@ export class MediaConnection extends BaseConnection {
   close(): void {
     if (this._negotiator) {
       this._negotiator.cleanup();
-      this._negotiator = null;
+      this.__negotiator = null;
     }
 
     this._localStream = null;
@@ -123,7 +132,7 @@ export class MediaConnection extends BaseConnection {
     if (this.provider) {
       this.provider._removeConnection(this);
 
-      this.provider = null;
+      this._provider = null;
     }
 
     if (this.options && this.options._stream) {
