@@ -11,11 +11,16 @@ export class Socket extends EventEmitter {
   private _id?: string;
   private _messagesQueue: Array<object> = [];
   private _socket?: WebSocket;
-  private _wsPingTimer?: any;
+  private _wsPingTimer?: number;
   private readonly _baseUrl: string;
 
+  private _getSocket(): WebSocket {
+    if (!this._socket) throw new Error("socket not initialized");
+    return this._socket;
+  }
+
   constructor(
-    secure: any,
+    secure: boolean,
     host: string,
     port: number,
     path: string,
@@ -97,7 +102,7 @@ export class Socket extends EventEmitter {
 
     const message = JSON.stringify({ type: ServerMessageType.Heartbeat });
 
-    this._socket!.send(message);
+    this._getSocket().send(message);
 
     this._scheduleHeartbeat();
   }
@@ -120,7 +125,7 @@ export class Socket extends EventEmitter {
   }
 
   /** Exposed send for DC & Peer. */
-  send(data: any): void {
+  send(data: object): void {
     if (this._disconnected) {
       return;
     }
@@ -132,7 +137,7 @@ export class Socket extends EventEmitter {
       return;
     }
 
-    if (!data.type) {
+    if (!data || !(data as { type?: unknown }).type) {
       this.emit(SocketEventType.Error, "Invalid message");
       return;
     }
@@ -143,7 +148,7 @@ export class Socket extends EventEmitter {
 
     const message = JSON.stringify(data);
 
-    this._socket!.send(message);
+    this._getSocket().send(message);
   }
 
   close(): void {
