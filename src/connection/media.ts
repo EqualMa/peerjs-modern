@@ -20,7 +20,10 @@ export interface MediaConnectionOptions extends BaseConnectionOptions {
 /**
  * Wraps the streaming interface between two Peers.
  */
-export class MediaConnection extends BaseConnection<MediaConnectionOptions> {
+export class MediaConnection extends BaseConnection<
+  MediaConnectionOptions,
+  ConnectionEventType.Stream
+> {
   private static readonly ID_PREFIX = "mc_";
 
   private __negotiator: Negotiator<this> | null = null;

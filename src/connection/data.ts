@@ -24,7 +24,10 @@ export interface DataConnectionOptions extends BaseConnectionOptions {
 /**
  * Wraps a DataChannel between two Peers.
  */
-export class DataConnection extends BaseConnection<DataConnectionOptions> {
+export class DataConnection extends BaseConnection<
+  DataConnectionOptions,
+  ConnectionEventType.Data | ConnectionEventType.Open
+> {
   connectionId: string;
   private static readonly ID_PREFIX = "dc_";
   private static readonly MAX_BUFFERED_AMOUNT = 8 * 1024 * 1024;

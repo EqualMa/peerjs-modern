@@ -89,7 +89,9 @@ function normalizePeerOptions(opts: Partial<PeerOptions> = {}): PeerOptions {
 /**
  * A peer who can initiate connections with other peers.
  */
-export class Peer extends EventEmitter {
+export class Peer extends EventEmitter<
+  "open" | "connection" | "call" | "close" | "disconnected" | "error"
+> {
   private readonly _options: PeerOptions;
   private readonly _api: API;
   private readonly _socket: Socket;

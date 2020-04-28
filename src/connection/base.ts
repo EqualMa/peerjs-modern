@@ -4,6 +4,7 @@ import type {
   ConnectionType,
   ServerMessageType,
   SerializationType,
+  ConnectionEventType,
 } from "../enums";
 import type { MediaConnectionOptions } from "./media";
 import type { DataConnectionOptions } from "./data";
@@ -84,8 +85,14 @@ export interface BaseConnectionOptions {
 }
 
 export abstract class BaseConnection<
-  O extends BaseConnectionOptions = BaseConnectionOptions
-> extends EventEmitter {
+  O extends BaseConnectionOptions = BaseConnectionOptions,
+  E extends ConnectionEventType = ConnectionEventType
+> extends EventEmitter<
+  | E
+  | ConnectionEventType.Close
+  | ConnectionEventType.Error
+  | ConnectionEventType.IceStateChanged
+> {
   protected _open = false;
 
   readonly metadata: unknown;
