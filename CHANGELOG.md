@@ -1,3 +1,10 @@
+# [1.0.0-beta.2](https://github.com/EqualMa/peerjs-modern/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2020-04-28)
+
+
+### Bug Fixes
+
+* add event types for event emitter subclasses ([853f3a5](https://github.com/EqualMa/peerjs-modern/commit/853f3a5551825b6929acc62d6718f786c2c55e3b))
+
 # 1.0.0-beta.1 (2020-04-27)
 
 
